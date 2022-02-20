@@ -1,0 +1,76 @@
+FROM centos:7 
+ARG USERNAME=vscode
+ARG USER_UID
+ARG USER_GID
+ARG DOCKER_UID
+
+ENV TZ=Asia/Seoul
+RUN ln -snf /usr/share/zoneinfo/${TZ} /etc/localtime && echo ${TZ} > /etc/timezone
+
+ARG DEVTOOLSET_VERSION=7
+
+RUN echo "LANG=ko_KR.UTF-8" >> /etc/environment
+RUN echo "LC_ALL=ko_KR.UTF-8" >> /etc/environment
+RUN yum -y install yum-plugin-fastestmirror; yum clean all
+RUN yum -y update; yum clean all
+RUN yum -y install epel-release; yum clean all
+RUN yum -y install centos-release-scl; yum clean all
+RUN yum -y install deltarpm yum-utils; yum clean all
+RUN yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+
+RUN echo "unset BASH_ENV PROMPT_COMMAND ENV" > /opt/scl_enable
+RUN echo "source scl_source enable devtoolset-7" >> /opt/scl_enable
+ENV BASH_ENV=/opt/scl_enable ENV=/opt/scl_enable PROMPT_COMMAND=". /opt/scl_enable"
+
+RUN yum -y install \
+    devtoolset-${DEVTOOLSET_VERSION} devtoolset-${DEVTOOLSET_VERSION}-toolchain \
+    devtoolset-${DEVTOOLSET_VERSION}-valgrind devtoolset-${DEVTOOLSET_VERSION}-make \
+    python-devel python3-devel initscripts git mod_ssl sudo openssl openssl-devel \
+    curl-devel gdb telnet wget gmp-devel zlib-devel bzip2-devel libxml2-devel \
+    ncurses-devel cppunit-devel snappy-devel autoconf libtool cmake3 libuuid-devel \
+    bzip2 gd-devel perl perl-ExtUtils-Embed geoip-devel readline readline-devel \
+    gettext gettext-devel flex flex-devel libffi-devel pkgconfig sqlite-devel \
+    expat-devel tk-devel gdbm-devel python-cffi xz-devel jemalloc jemalloc-devel libxslt \
+    bison bison-devel binutils-devel lcov java-11-openjdk-devel boost169-devel \
+    docker-ce docker-ce-cli containerd.io tree \
+    && yum clean all
+
+RUN if [ ${USER_UID} -eq ${USER_GID} ]; then groupadd --gid ${USER_GID} ${USERNAME}; fi
+RUN useradd -s /bin/bash --uid ${USER_UID} --gid ${USER_GID} -m ${USERNAME}
+RUN echo ${USERNAME} ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/${USERNAME} \
+    && chmod 0440 /etc/sudoers.d/${USERNAME}
+RUN mkdir -p /home/${USERNAME}/.vscode-server/extensions \
+    /home/${USERNAME}/.vscode-server-insiders/extensions \
+    && chown -R ${USERNAME} \
+    /home/${USERNAME}/.vscode-server \
+    /home/${USERNAME}/.vscode-server-insiders
+
+RUN if [ ${DOCKER_UID} -ne 0 ]; \
+    then groupmod -g ${DOCKER_UID} docker && usermod -aG docker ${USERNAME} ; \
+    else usermod -aG ${DOCKER_UID} ${USERNAME} || echo ${DOCKER_UID} ; fi
+
+RUN localedef -ci ko_KR -f UTF-8 ko_KR.utf8; localedef -f UTF-8 -i ko_KR ko_KR.UTF-8
+
+RUN curl -L "https://github.com/docker/compose/releases/download/1.29.1/docker-compose-$(uname -s)-$(uname -m)" \
+    -o /usr/bin/docker-compose && \
+    chmod +x /usr/bin/docker-compose
+
+RUN wget https://sourceforge.net/projects/swig/files/swig/swig-4.0.2/swig-4.0.2.tar.gz \
+    && tar zxvf swig-4.0.2.tar.gz && cd swig-4.0.2 && \
+    source scl_source enable devtoolset-7 && \
+    ./configure --prefix=/usr/local && make && make install && cd .. && rm -rf swig-4.0.2*
+
+ENV JAVA_HOME=/usr/lib/jvm/java-11-openjdk
+RUN curl https://archive.apache.org/dist/maven/maven-3/3.8.1/binaries/apache-maven-3.8.1-bin.tar.gz | tar zx -C /usr/local \
+    && mv /usr/local/apache-maven-3.8.1 /usr/local/apache-maven
+ENV M2_HOME=/usr/local/apache-maven
+ENV PATH=${M2_HOME}/bin:${PATH}
+
+# golang
+RUN curl https://dl.google.com/go/go1.17.5.linux-amd64.tar.gz | tar zx -C /opt/
+
+ENV GOPATH /workspace/.go
+ENV PATH /workspace/.go/bin:/opt/go/bin:$PATH
+ENV CGO_CFLAGS="-g -O2"
+ENV CGO_LDFLAGS="-g -O2 -lnsl -lpthread -lrt"
+

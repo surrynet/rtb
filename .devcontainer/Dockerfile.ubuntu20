@@ -1,0 +1,72 @@
+FROM ubuntu:20.04
+
+ARG USERNAME=vscode
+ARG USER_UID
+ARG USER_GID
+ARG DOCKER_UID
+
+ENV TZ=Asia/Seoul
+RUN ln -snf /usr/share/zoneinfo/${TZ} /etc/localtime && echo ${TZ} > /etc/timezone
+
+ENV DEBIAN_FRONTEND noninteractive
+
+RUN apt-get update --fix-missing
+
+RUN apt-get -y install curl apt-transport-https ca-certificates gnupg lsb-release && \
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor \
+        -o /usr/share/keyrings/docker-archive-keyring.gpg
+RUN echo \
+    "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu \
+    $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+RUN apt-get update
+RUN apt-get -y install --no-install-recommends \
+    apt-utils iputils-ping build-essential sudo cmake pkg-config git vim tree psmisc \
+    libbison-dev flex libgd-dev libssl-dev openssl libgmp-dev gettext \
+    libbz2-dev libzip-dev libsnappy-dev libreadline-dev libncurses-dev \
+    uuid-dev tk-dev libjemalloc-dev libffi-dev libsqlite3-dev libxml2-dev \
+    wget rsync netcat curl libcurl4-openssl-dev libtool lcov \
+    rapidjson-dev libboost-all-dev libcppunit-dev \
+    locales language-pack-ko gawk openjdk-11-jdk libboost-all-dev \
+    docker-ce docker-ce-cli containerd.io tree
+
+RUN if [ ${USER_UID} -eq ${USER_GID} ]; then groupadd --gid ${USER_GID} ${USERNAME}; fi
+RUN useradd -s /bin/bash --uid ${USER_UID} --gid ${USER_GID} -m ${USERNAME}
+RUN echo ${USERNAME} ALL=\(root\) NOPASSWD:ALL > /etc/sudoers.d/${USERNAME} \
+    && chmod 0440 /etc/sudoers.d/${USERNAME}
+RUN mkdir -p /home/${USERNAME}/.vscode-server/extensions \
+    /home/${USERNAME}/.vscode-server-insiders/extensions \
+    && chown -R ${USERNAME} \
+    /home/${USERNAME}/.vscode-server \
+    /home/${USERNAME}/.vscode-server-insiders
+
+RUN if [ ${DOCKER_UID} -ne 0 ]; \
+    then groupmod -g ${DOCKER_UID} docker && usermod -aG docker ${USERNAME} ; \
+    else usermod -aG ${DOCKER_UID} ${USERNAME} || echo ${DOCKER_UID} ; fi
+
+RUN localedef -ci ko_KR -f UTF-8 ko_KR.utf8; localedef -f UTF-8 -i ko_KR ko_KR.UTF-8
+ENV LC_ALL=ko_KR.UTF-8
+RUN apt-get -y clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+RUN sudo curl -L "https://github.com/docker/compose/releases/download/1.29.1/docker-compose-$(uname -s)-$(uname -m)" \
+    -o /usr/bin/docker-compose && \
+    sudo chmod +x /usr/bin/docker-compose
+
+RUN wget https://sourceforge.net/projects/swig/files/swig/swig-4.0.2/swig-4.0.2.tar.gz \
+    && tar zxvf swig-4.0.2.tar.gz && cd swig-4.0.2 && \
+    ./configure --prefix=/usr/local && make && make install && cd .. && rm -rf swig-4.0.2*
+
+ENV JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64
+RUN curl https://archive.apache.org/dist/maven/maven-3/3.8.1/binaries/apache-maven-3.8.1-bin.tar.gz | tar zx -C /usr/local \
+    && mv /usr/local/apache-maven-3.8.1 /usr/local/apache-maven
+ENV M2_HOME=/usr/local/apache-maven
+ENV PATH=${M2_HOME}/bin:${PATH}
+
+# golang
+RUN curl https://dl.google.com/go/go1.17.5.linux-amd64.tar.gz | tar zx -C /opt/
+
+ENV GOPATH /workspace/.go
+ENV PATH /workspace/.go/bin:/opt/go/bin:$PATH
+ENV CGO_CFLAGS="-g -O2"
+ENV CGO_LDFLAGS="-g -O2 -lnsl -lpthread -lrt"
+
