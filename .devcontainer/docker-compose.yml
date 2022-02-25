@@ -28,7 +28,6 @@ services:
             - type: bind
               source: ~/.m2
               target: /home/vscode/.m2
-        ipc: host
         networks:
             - rtb
 volumes:
