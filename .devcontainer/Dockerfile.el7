@@ -36,7 +36,7 @@ RUN yum -y install \
     && yum clean all
 
 RUN curl -L https://boostorg.jfrog.io/artifactory/main/release/1.70.0/source/boost_1_70_0.tar.gz | tar zx -C ./ && \
-    source scl_source enable devtoolset-7 && cd boost_1_70_0 && ./bootstrap.sh --prefix=/usr/local && ./b2 install && rm -rf boost_1_70_0
+    source scl_source enable devtoolset-7 && cd boost_1_70_0 && ./bootstrap.sh --prefix=/usr/local && ./b2 install && cd .. && rm -rf boost_1_70_0
 
 RUN if [ ${USER_UID} -eq ${USER_GID} ]; then groupadd --gid ${USER_GID} ${USERNAME}; fi
 RUN useradd -s /bin/bash --uid ${USER_UID} --gid ${USER_GID} -m ${USERNAME}
