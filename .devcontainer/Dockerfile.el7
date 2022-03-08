@@ -33,6 +33,7 @@ RUN yum -y install \
     expat-devel tk-devel gdbm-devel python-cffi xz-devel jemalloc jemalloc-devel libxslt \
     bison bison-devel binutils-devel lcov java-11-openjdk-devel \
     docker-ce docker-ce-cli containerd.io tree \
+    perf gawk \
     && yum clean all
 
 RUN curl -L https://boostorg.jfrog.io/artifactory/main/release/1.70.0/source/boost_1_70_0.tar.gz | tar zx -C ./ && \

@@ -28,6 +28,7 @@ RUN apt-get -y install --no-install-recommends \
     wget rsync netcat curl libcurl4-openssl-dev libtool lcov \
     rapidjson-dev libcppunit-dev \
     locales language-pack-ko gawk openjdk-11-jdk \
+    linux-tools-common \
     docker-ce docker-ce-cli containerd.io tree
 
 RUN curl -L https://boostorg.jfrog.io/artifactory/main/release/1.70.0/source/boost_1_70_0.tar.gz | tar zx -C ./ && \
